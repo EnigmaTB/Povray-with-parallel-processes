@@ -1,0 +1,20 @@
+#!/bin/sh
+
+# Mark Gordon Nov 99
+
+# This is a very basic install script.  It doesn't install xpovicon.xpm
+# anywhere useful, since that's fairly system-dependent, nor does it
+# create .povrayrc files for users' $HOME directories.
+
+mv povray.1 /usr/local/man/man1
+if [ -x x-povray ]
+then mv x-povray /usr/local/bin
+fi
+if [ -x s-povray ]
+then mv s-povray /usr/local/bin
+fi
+if [ -x povray ]
+then mv povray /usr/local/bin
+fi
+cd ..
+mv povray31 /usr/local/lib

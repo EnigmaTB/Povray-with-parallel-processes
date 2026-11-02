@@ -1,0 +1,56 @@
+POV-Ray 3.1 final release September 1998
+
+Bugs fixed since beta.6
+
+ Fixed media bug in multi-density declared media
+ Fixed included macro crash
+ Added translate, rotate, scale, transform, matrix to material{}
+ Added logical function "defined(IDENTIFIER)"
+  Note: When #read (MyFile,Var) hits eof, MyFile is closed and 
+        it does #undef MyFile automatically.  Its always worked
+        this way.  But now you can do...
+         #while(defined(MyFile))
+           #read(MyFile,Var)
+         #end
+ Fixed #undef MyMaterial
+
+Bugs fixed since beta.5
+
+ Made density{color COLOR} legal mostly for use in density_map
+ Made pignent{average color_map{}} illegal
+ Fixed old bezier type 0 bug
+ Eliminated negative strength blobs from bounding slab calculation
+ Fixed hfield divide by zero bug on some platforms which didn't trap
+ Added some missing identifier types as macro parameters
+ Fixed mosaic preview overflow on odd size images
+ Implemented material{} statement.
+   MATERIAL:
+     material{[MATERIAL_IDENTIFIER][MATERIAL_ITEMS...]}
+   MATERIAL_ITEMS:
+     TEXTURE  |  INTERIOR
+  Example
+   #declare MyGlass=material{texture{Glass_T} interior{Glass_I}}
+   object{MyObject material{MyGlass}}
+ Fixed problem with media and no light sources.
+ Fixed memory leak in mesh
+ Fixed erronious missing pigment in fully textured mesh
+ Fixed repeat warp flip bug from 3.02
+ Fixed multi-dimension array initializer bug
+ Fixed multi-density in declared media bug
+
+POV-Ray 3.1.beta.5 released late July 1998
+
+Bugs fixed since beta.4
+
+ The +Q8 and +Q9 now correctly turn media off/on
+ Inverse CSG intersections now use merge rather than union.
+ Mesh triangle textures now translate properly.
+ The density_file pattern now searches +Lpath & Library_Path=path
+ Negative subscript on array now properly trapped
+ Fixed bug with macros with no parameters
+ Fixed bug redeclaring as wrong type caused crash.
+ Fixed bug density with no color_map inside density_map crashed.
+ Fixed bug #declare MyArray=YourArray now works.
+ New feature #declare MyIdentifier=YourIdentifier now works.
+
+POV-Ray 3.1.beta.4 first public beta July 4th.

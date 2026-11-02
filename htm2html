@@ -1,0 +1,83 @@
+#!/usr/bin/perl
+
+# Script to rename the POV-Ray 3.1 HTML docs from *.htm to *.html
+# and change the links within the documents to match.  This change
+# may be necessary for Unix users to view the pages properly.  Also
+# fixes some case sensitivity issues and tweaks one of the HTML
+# characters so it looks right in Netscape for Unix.
+#
+# This script assumes that you unzipped povhtml.zip with the following
+# (or equivalent), which should make all the file names lower-case:
+# 
+# unzip povhtml.zip
+#
+# If you unzipped with -L, it renames image files (named "Image*.htm")
+# in a manner that's a nuisance to repair.  Just let them come out
+# in lower-case, and this script will work fine.
+#
+# To use, run this script in the directory where the *.htm files are 
+# located.  You will need write permission in the directory and its
+# contents. DO NOT RUN THIS SCRIPT IN A DIRECTORY THAT HAS EXISTING *.htm
+# DOCUMENTS.
+#
+# This script may be a bit ugly, but TIMTOWTDI.
+#
+# Mark Gordon, June 1999
+
+# This first bit changes the directory from where the script is located
+# to the current working directory.  This allows the script to be run
+# anywhere.
+
+use Cwd;
+chdir(cwd());
+
+# This block handles povuser.htm, replaces all the .htm links
+# with .html links and the &trade; characters with the better-supported
+# &#153;, outputting the results to povuser.html, and deleting povuser.htm
+
+open(POVIN, "povuser.htm") || die "can't open povuser.htm: $!";
+open(POVOUT, ">povuser.html") || die "can't open povuser.html: $!";
+while (<POVIN>) {
+  s/.htm/.html/g;
+  s/&trade;/&#153;/g;
+  print POVOUT $_;
+}
+close(POVIN) || die "can't close povuser.htm: $!";
+unlink("povuser.htm");
+close(POVOUT) || die "can't close povuser.html: $!";
+
+# This next block opens each of the remaining *.htm files, replaces all
+# *.htm links with corresponding *.html links, replaces &trade; with
+# &#153;, writes the result to the appropriate new *.html files, and
+# deletes the old *.htm files.
+
+@docs = <pov*.htm>;
+
+foreach $file (@docs) {
+  open(POVIN, $file) || die "can't open $file: $!";
+  $_ = $file;
+  /pov(\d+)/;
+  $output = "pov".$1.".html";
+  open(POVOUT, ">$output") || die "can't create $output: $!";
+  while (<POVIN>) {
+    s/.htm/.html/g;
+    s/&trade;/&#153;/g;
+    print POVOUT $_;
+  }
+  close(POVIN) || die "can't close $file: $!";
+  unlink($file);
+  close(POVOUT) || die "can't close $output: $!";
+}
+
+# This next block renames each of the image files to what the links
+# are pointing to.
+
+@docs = <image*>;
+
+foreach $file (@docs) {
+    $_ = $file;
+    /image(\S+)/;
+    rename $file, "Image".$1;
+}
+
+unlink <*.htm>;
