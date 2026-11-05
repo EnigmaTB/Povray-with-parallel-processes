@@ -47,6 +47,8 @@
 #include "vbuffer.h"
 #include "userio.h"
 
+#include "com.h"
+
 
 /*****************************************************************************
 * Local preprocessor defines
@@ -3307,12 +3309,29 @@ static void output_line(int y)
 
   if (y > opts.First_Line)
   {
+    /*changes for work with the "com"*/
+    extern int global_my_rank;
+    extern void *worker_shm_buffer;
+    if (global_my_rank > 0 && worker_shm_buffer != NULL)
+    {
+      
+      int local_line_idx = (y - 1) - opts.First_Line;
+      size_t row_size = Frame.Screen_Width * sizeof(COLOUR);
+      
+      void *dest = (char *)worker_shm_buffer + sizeof(ChunkHeader) + local_line_idx * row_size;
+      
+      memcpy(dest, Previous_Line, row_size);
+    }
+    else
+    /*end of changes*/
+    {
     if (opts.Options & DISKWRITE)
     {
       Write_Line(Output_File_Handle, Previous_Line, y - 1);
     }
     POV_WRITE_LINE (Previous_Line, y - 1)
   }
+}
 
   if (opts.Options & VERBOSE)
   {

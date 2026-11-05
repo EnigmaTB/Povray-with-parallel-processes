@@ -70,6 +70,8 @@
 #include "lbuffer.h"
 #include "vbuffer.h"
 
+#include "com.h"
+
 
 /*****************************************************************************
 * Local preprocessor defines
@@ -85,7 +87,6 @@
 /*****************************************************************************
 * Local typedefs
 ******************************************************************************/
-
 
 
 /*****************************************************************************
@@ -147,6 +148,11 @@ int pre_init_flag=0;
 
 char *Option_String_Ptr;      
 DBL Clock_Delta;
+
+/*a varible for keeping a rank of the current proces */
+  int global_my_rank = 0;
+/*a buffer for current worker-proces*/
+void *worker_shm_buffer = NULL;
 
 /*****************************************************************************
 * Static functions
@@ -215,9 +221,15 @@ static void destroy_shellouts (void);
   int Diff_Frame;
   DBL Diff_Clock;
   SHELLRET Pre_Scene_Result, Frame_Result;
+  /*initialization of a varible for the "com" library work*/
+  int rank;
 
   /* Attention all ALTMAIN people! See comments attached to this function*/
   pre_init_povray();
+
+  /*initialization of a processes for the "com" library work*/
+  com_initialize(4, &rank);
+  global_my_rank = rank; 
 
   /* Startup povray. */
   Stage = STAGE_STARTUP;
@@ -368,6 +380,9 @@ static void destroy_shellouts (void);
      POV_SHELLOUT(POST_SCENE_SHL);
   }
 
+  /*finalizing of work with the "com" library*/
+  com_finalize();
+
   /* And finish. */
 
   Terminate_POV(0);
@@ -488,7 +503,21 @@ static void FrameRender()
    * be done before any image-size related allocations, since the settings
    * in a resumed file take precedence over that specified by the user. [AED]
    */
-  open_output_file();
+
+  /*only pcrocess with rank = 0 is allowed to open file*/
+  if(global_my_rank == 0) {
+    open_output_file();
+  }
+
+  /*condition for worker-processes*/
+  if (global_my_rank > 0)
+  {
+      if (Output_File_Handle != NULL && Output_File_Handle->file != NULL)
+      {
+          fclose(Output_File_Handle->file);
+          Output_File_Handle->file = NULL;
+      }
+  }
 
   /* Start the display. */
   if (opts.Options & DISPLAY)
@@ -575,6 +604,46 @@ static void FrameRender()
     }
   }
 
+  /* Division of the canvas by global_my_rank */
+  int total_height = Frame.Screen_Height;
+  int chunk_height = total_height / 4;
+
+  opts.First_Line = global_my_rank * chunk_height;
+  
+  if (global_my_rank == 3) {
+      opts.Last_Line = total_height;
+  } else {
+      opts.Last_Line = (global_my_rank + 1) * chunk_height;
+  }
+  fprintf(stderr, "[Process %d] START. Rank assigned.\n", global_my_rank);
+  fprintf(stderr, "[Process %d] Lines range: First=%d, Last=%d\n", global_my_rank, opts.First_Line, opts.Last_Line);
+
+  if (global_my_rank > 0) {
+      /*opts.Options &= ~DISKWRITE;*/
+      opts.Options &= ~DISPLAY;
+
+      fprintf(stderr, "[Process %d] Allocating shm buffer...\n", global_my_rank);
+
+      int num_lines = opts.Last_Line - opts.First_Line;
+      size_t pixels_size = num_lines * Frame.Screen_Width * sizeof(COLOUR);
+      size_t total_msg_size = sizeof(ChunkHeader) + pixels_size;
+      
+      worker_shm_buffer = com_alloc_msg(total_msg_size);
+
+      if (worker_shm_buffer == NULL) {
+        fprintf(stderr, "[Process %d] ERROR: com_alloc_msg returned NULL!\n", global_my_rank);
+    } else {
+        fprintf(stderr, "[Process %d] Buffer allocated successfully.\n", global_my_rank);
+    }
+      
+      ChunkHeader *header = (ChunkHeader *)worker_shm_buffer;
+      header->rank = global_my_rank;
+      header->start_line = opts.First_Line;
+      header->num_lines = num_lines;
+  }
+
+  fprintf(stderr, "[Process %d] Entering tracing switch...\n", global_my_rank);
+
   switch (opts.Tracing_Method)
   {
     case 2 :
@@ -594,6 +663,87 @@ static void FrameRender()
   /* Record time so well spent before file close so it can be in comments  */
   STOP_TIME
   trender = TIME_ELAPSED
+
+  /*variants for diffetent processes that comunicates with "com"*/
+ if (global_my_rank > 0) {
+      int num_lines = opts.Last_Line - opts.First_Line;
+      size_t pixels_size = num_lines * Frame.Screen_Width * sizeof(COLOUR);
+      size_t total_msg_size = sizeof(ChunkHeader) + pixels_size;
+
+      com_send(0, worker_shm_buffer, total_msg_size);
+      com_free_msg(worker_shm_buffer);
+      worker_shm_buffer = NULL;
+
+      void *ack_buf = NULL;
+      size_t ack_size = 0;
+      com_recv(&ack_buf, &ack_size);
+      if (ack_buf != NULL) {
+          com_free_msg(ack_buf);
+      }
+
+      exit(0);
+  }
+
+  if (global_my_rank == 0) {
+      size_t row_size = Frame.Screen_Width * sizeof(COLOUR);
+      void *worker_buffers[4] = { NULL, NULL, NULL, NULL };
+      
+      worker_buffers[0] = worker_shm_buffer;
+
+      int p;
+      for (p = 0; p < 3; p++) { 
+          void *recv_buf = NULL;
+          size_t recv_size = 0;
+          com_recv(&recv_buf, &recv_size);
+
+          ChunkHeader *h = (ChunkHeader *)recv_buf;
+          if (h->rank >= 1 && h->rank <= 3) {
+              worker_buffers[h->rank] = recv_buf;
+          }
+      }
+
+      int r;
+      for (r = 0; r < 4; r++) {
+          if (worker_buffers[r] != NULL) {
+              ChunkHeader *h = (ChunkHeader *)worker_buffers[r];
+              void *pixels_ptr = (char *)worker_buffers[r] + sizeof(ChunkHeader);
+
+              int i;
+              for (i = 0; i < h->num_lines; i++) {
+                  int current_line_num = h->start_line + i;
+                  void *row_ptr = (char *)pixels_ptr + (i * row_size);
+                  
+                  Write_Line(Output_File_Handle, (COLOUR *)row_ptr, current_line_num);
+              }
+          }
+      }
+
+      if (Output_File_Handle) {
+         Close_File(Output_File_Handle);
+         Output_File_Handle = NULL;
+      }
+
+      for (r = 1; r <= 3; r++) {
+          if (worker_buffers[r] != NULL) {
+              com_free_msg(worker_buffers[r]);
+          }
+      }
+      com_free_msg(worker_shm_buffer);
+      worker_shm_buffer = NULL;
+
+      for (r = 1; r <= 3; r++) {
+          void *ack_msg = com_alloc_msg(1);
+          com_send(r, ack_msg, 1);
+          com_free_msg(ack_msg);
+      }
+  }
+
+  if (Output_File_Handle)
+  {
+     Close_File(Output_File_Handle);
+     Output_File_Handle = NULL;
+  }
+
 
   /* Close out our file */
   if (Output_File_Handle)

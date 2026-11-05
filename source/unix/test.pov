@@ -1,13 +1,28 @@
-// Простий тест для перевірки рендерингу POV-Ray 3.1
-
 camera {
-   location <0, 2, -5>
-   look_at <0, 0, 0>
+    location <0, 2, -10>
+    look_at <0, 1, 0>
+    angle 45
 }
 
-light_source { <10, 10, -10> color rgb <1, 1, 1> }
+light_source { <5, 10, -10> rgb <1, 1, 1> }
 
+// Площина підлоги з шаховим патерном
+plane {
+    y, 0
+    pigment {
+        checker rgb <1, 0, 0>, rgb <0, 0, 1>
+        scale 1
+    }
+    finish { reflection 0.2 }
+}
+
+// Сфера в центрі з відблисками
 sphere {
-   <0, 0, 0>, 1.5
-   pigment { color rgb <1, 0, 0> } // Червона куля
+    <0, 1, 0>, 1
+    pigment { rgb <1, 1, 0> }
+    finish { 
+        ambient 0.2 
+        diffuse 0.8 
+        specular 1 
+    }
 }

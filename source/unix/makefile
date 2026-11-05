@@ -239,6 +239,7 @@ POVOBJS = $(ODIR)/atmosph$(OBJ)  \
           $(ODIR)/vbuffer$(OBJ)  \
           $(ODIR)/vlbuffer$(OBJ) \
           $(ODIR)/warps$(OBJ)    \
+          $(ODIR)/com$(OBJ)      \
           $(MACHINE_OBJ)
 
 #
@@ -1820,6 +1821,9 @@ $(ODIR)/warps$(OBJ)    : $(warpsDEP)
 
 $(ODIR)/xwindows$(OBJ) : $(xwindowsDEP)
 	$(CC) $(CFLAGS) $(XLIBINC) xwindows.c
+    
+$(ODIR)/com$(OBJ) : $(SRCDIR)/com.c $(SRCDIR)/com.h
+	$(CC) $(CFLAGS) $(SRCDIR)/com.c
 
 
 

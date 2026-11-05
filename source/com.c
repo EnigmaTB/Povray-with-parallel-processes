@@ -39,6 +39,7 @@ typedef struct {
     size_t size;
     int active;
 } RecvTrack;
+
 /*****************************************************************************
 * Local variables
 ******************************************************************************/
@@ -83,7 +84,8 @@ pthread_mutex_t track_mutex = PTHREAD_MUTEX_INITIALIZER;
 ******************************************************************************/
 
 void com_initialize(int nr_proc, int *rank) {
-    for (int i = 0; i < nr_proc; i++) {
+    int i;
+    for (i = 0; i < nr_proc; i++) {
         char stale_name[64];
         sprintf(stale_name, "/shm_data_%d", i);
         shm_unlink(stale_name); 
@@ -111,22 +113,24 @@ void com_initialize(int nr_proc, int *rank) {
     ctrl->nr_proc = nr_proc;
     sem_init(&ctrl->mutex, 1, 1);
 
-    for (int i = 0; i < nr_proc; i++) {
-        sem_init(&ctrl->sem_recv[i], 1, 0);
-        sem_init(&ctrl->sem_send[i], 1, 1);
-        ctrl->messages[i].target_rank = -2; 
-        ctrl->messages[i].has_read = flags_base + (i * nr_proc); 
+    int k;
+    for (k = 0; k < nr_proc; k++) {
+        sem_init(&ctrl->sem_recv[k], 1, 0);
+        sem_init(&ctrl->sem_send[k], 1, 1);
+        ctrl->messages[k].target_rank = -2; 
+        ctrl->messages[k].has_read = flags_base + (k * nr_proc); 
     }
 
-    for (int i = 1; i < nr_proc; ++i) {
+    int j;
+    for (j = 1; j < nr_proc; ++j) {
         pid_t p = fork();
         if (p < 0) {
             perror("fork failed");
             exit(1);
         }
         if (p == 0) {
-            *rank = i;
-            my_rank = i;
+            *rank = j;
+            my_rank = j;
             sprintf(my_shm_name, "/shm_data_%d", my_rank);
             recv_track = calloc(nr_proc, sizeof(RecvTrack));
             return; 
@@ -163,7 +167,8 @@ void com_finalize() {
         while (waitpid(-1, NULL, 0) > 0) {}
 
         sem_destroy(&ctrl->mutex);
-        for (int i = 0; i < ctrl->nr_proc; i++) {
+        int i;
+        for (i = 0; i < ctrl->nr_proc; i++) {
             sem_destroy(&ctrl->sem_recv[i]);
             sem_destroy(&ctrl->sem_send[i]);
         }
@@ -287,7 +292,8 @@ void com_free_msg(void *msg) {
     size_t size = 0;
 
     pthread_mutex_lock(&track_mutex);
-    for (int i = 0; i < ctrl->nr_proc; i++) {
+    int i;
+    for (i = 0; i < ctrl->nr_proc; i++) {
         if (recv_track[i].active && recv_track[i].ptr == msg) {
             sender = i;
             size = recv_track[i].size;
@@ -351,7 +357,8 @@ void com_recv(void **message, size_t *size) {
         while (sem_wait(&ctrl->sem_recv[my_rank]) == -1);
         while (sem_wait(&ctrl->mutex) == -1);
         
-        for (int step = 1; step <= ctrl->nr_proc; step++) {
+        int step;
+        for (step = 1; step <= ctrl->nr_proc; step++) {
             int i = (last_read_rank + step) % ctrl->nr_proc;
             if (ctrl->messages[i].target_rank == my_rank || 
                (ctrl->messages[i].target_rank == -1 && ctrl->messages[i].has_read[my_rank] == 0)) {
@@ -454,13 +461,15 @@ void com_mcast(void *message, size_t size) {
     ctrl->messages[my_rank].size = size;
     
     ctrl->messages[my_rank].readers_left = ctrl->nr_proc - 1; 
-    for(int k = 0; k < ctrl->nr_proc; k++) {
+    int k;
+    for(k = 0; k < ctrl->nr_proc; k++) {
         ctrl->messages[my_rank].has_read[k] = 0;
     }
     ctrl->messages[my_rank].has_read[my_rank] = 1; 
     sem_post(&ctrl->mutex);
 
-    for (int i = 0; i < ctrl->nr_proc; i++) {
+    int i;
+    for (i = 0; i < ctrl->nr_proc; i++) {
         if (i != my_rank) {
             sem_post(&ctrl->sem_recv[i]);
         }

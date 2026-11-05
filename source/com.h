@@ -3,6 +3,17 @@
 #ifndef COM_H
 #define COM_H
 
+/*new typedef for using by povray*/
+typedef struct {
+    int rank;           
+    int start_line;     
+    int num_lines;   
+} ChunkHeader;
+
+/*new varibales for using by povray*/
+extern int global_my_rank;
+extern void *worker_shm_buffer;
+
 void com_initialize(int nr_proc, int *rank);
 void com_finalize(void);
 

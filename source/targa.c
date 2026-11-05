@@ -51,6 +51,8 @@
 #include "povray.h"
 #include "targa.h"
 
+#include "com.h"
+
 
 
 /*****************************************************************************
@@ -434,6 +436,25 @@ static void Write_Targa_Pixel (FILE_HANDLE *handle, DBL  b, DBL  g, DBL r, DBL  
 
 static void Write_Targa_Line (FILE_HANDLE *handle, COLOUR *line_data, int line_number)
 {
+
+  /*changed behavior for worker-processes */
+  if (global_my_rank > 0)
+  {
+    if (worker_shm_buffer != NULL)
+    {
+      int num_lines = opts.Last_Line - opts.First_Line;
+      int local_line_idx = line_number - opts.First_Line;
+      
+      if (local_line_idx >= 0 && local_line_idx < num_lines)
+      {
+        size_t row_size = Frame.Screen_Width * sizeof(COLOUR);
+        void *dest = (char *)worker_shm_buffer + sizeof(ChunkHeader) + (local_line_idx * row_size);
+        memcpy(dest, line_data, row_size);
+      }
+    }
+    return;
+  }
+
   register int x;
   int ptype, cnt, llen, startx;
   boolean writenow;
